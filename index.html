@@ -47,18 +47,22 @@
         /* --- SUBJECT CARDS --- */
         .subject-card { position: relative; border-left: 4px solid var(--accent); }
         .subject-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .subject-name { font-weight: 800; font-size: 0.95rem; color: #fff; text-transform: uppercase; }
+        .subject-name { font-weight: 800; font-size: 0.95rem; color: #fff; text-transform: uppercase; cursor: pointer; }
         
-        .btn-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-        .action-btn { border: none; padding: 10px; border-radius: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; font-size: 0.7rem; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
+        .action-btn { border: none; padding: 10px 2px; border-radius: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; font-size: 0.6rem; }
         .btn-p { background: rgba(0, 255, 136, 0.1); color: var(--success); border: 1px solid var(--success); }
         .btn-a { background: rgba(255, 0, 85, 0.1); color: var(--danger); border: 1px solid var(--danger); }
         .btn-b { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid var(--warning); }
+        .btn-u { background: rgba(255, 255, 255, 0.05); color: #fff; border: 1px solid #444; }
         
         .prediction { margin-top: 12px; font-size: 0.75rem; color: #aaa; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; }
+        .bunk-tag { background: rgba(245, 158, 11, 0.2); color: var(--warning); padding: 2px 8px; border-radius: 5px; font-weight: bold; }
 
         input { width: 100%; padding: 14px; margin: 8px 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: white; box-sizing: border-box; }
         .login-btn { width: 100%; padding: 16px; border-radius: 12px; border: none; background: linear-gradient(45deg, var(--accent), var(--purple)); color: white; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        
+        .add-btn { background: none; border: 1px dashed var(--accent); color: var(--accent); width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; margin-bottom: 20px; font-size: 0.8rem; }
     </style>
 </head>
 <body>
@@ -75,11 +79,10 @@
             <input type="file" id="photo-input" hidden accept="image/*" onchange="handlePhoto(this)">
 
             <input type="text" id="nameIn" placeholder="Full Name">
-            <input type="text" id="rollIn" placeholder="Roll Number (e.g. 21BECE01)">
-            <input type="text" id="secIn" placeholder="Section (e.g. A2 / CSE-1)">
+            <input type="text" id="rollIn" placeholder="Roll Number">
+            <input type="text" id="secIn" placeholder="Section">
             
             <button class="login-btn" onclick="saveProfile()">ACCESS DASHBOARD</button>
-            <p style="color:#555; font-size: 0.7rem; margin-top: 15px;">Haar tab hoti hai jab aap koshish chhod dete ho, jeet tab shuru hoti hai jab aap khud par vishwas karte ho.</p>
         </div>
     </div>
 
@@ -106,20 +109,18 @@
             </div>
         </div>
 
-        <h3 style="margin: 20px 0 15px; font-size: 0.9rem; color: #888; letter-spacing: 1px;">SUBJECT WISE ANALYSIS</h3>
+        <button class="add-btn" onclick="addSubject()">+ Add New Subject</button>
         <div id="subject-list"></div>
     </div>
 </div>
 
 <script>
-    const defaultSubjects = [
-        "BET", "CHEMISTRY", "MATHS-II", "ENGLISH", 
-        "CHEMISTRY LAB", "WS-II LAB-ME", "ENGLISH LAB", "BET LAB"
-    ];
-
-    let userProfile = JSON.parse(localStorage.getItem('at_profile')) || null;
-    let subjects = JSON.parse(localStorage.getItem('at_subs_data')) || 
-                   defaultSubjects.map(s => ({ name: s, p: 0, t: 0 }));
+    // subjects mein 'b' (bunk count) add kiya gaya hai
+    const defaultNames = ["BET", "CHEMISTRY", "MATHS-II", "ENGLISH", "CHEM LAB"];
+    
+    let userProfile = JSON.parse(localStorage.getItem('at_profile_v4'));
+    let subjects = JSON.parse(localStorage.getItem('at_subs_v4')) || 
+                   defaultNames.map(s => ({ name: s, p: 0, t: 0, b: 0 }));
 
     window.onload = () => { if(userProfile) renderApp(); }
 
@@ -141,43 +142,51 @@
         const roll = document.getElementById('rollIn').value;
         const sec = document.getElementById('secIn').value;
         const photo = document.getElementById('preview-img').src;
-
-        if(!name || !roll || !sec) return alert("Please fill all details");
-
+        if(!name || !roll) return alert("Please fill details");
         userProfile = { name, roll, sec, photo };
-        localStorage.setItem('at_profile', JSON.stringify(userProfile));
+        localStorage.setItem('at_profile_v4', JSON.stringify(userProfile));
         renderApp();
     }
 
     function renderApp() {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app-screen').style.display = 'block';
-        
         document.getElementById('u-name-display').innerText = userProfile.name;
-        document.getElementById('u-detail-display').innerText = `${userProfile.roll} • Section ${userProfile.sec}`;
-        if(userProfile.photo) document.getElementById('u-photo-display').src = userProfile.photo;
-        
-        updateUI();
-    }
-
-    function mark(index, type) {
-        subjects[index].t += 1;
-        if(type === 'p') subjects[index].p += 1;
-        localStorage.setItem('at_subs_data', JSON.stringify(subjects));
-        updateUI();
-    }
-
-    function calculatePrediction(p, t) {
-        const target = 0.75;
-        if (t === 0) return "No data recorded yet.";
-        let current = p / t;
-        if (current >= target) {
-            let canBunk = Math.floor((p - (target * t)) / target);
-            return canBunk > 0 ? `✅ Safe! You can bunk next <b>${canBunk}</b> classes.` : `✅ On track! Don't bunk the next class.`;
-        } else {
-            let req = Math.ceil(((target * t) - p) / (1 - target));
-            return `🚨 Warning! Attend next <b>${req}</b> classes for 75%.`;
+        document.getElementById('u-detail-display').innerText = `${userProfile.roll} • ${userProfile.sec}`;
+        if(userProfile.photo && userProfile.photo.startsWith('data')) {
+            document.getElementById('u-photo-display').src = userProfile.photo;
         }
+        updateUI();
+    }
+
+    function mark(idx, type) {
+        if(type === 'p') { subjects[idx].p++; subjects[idx].t++; }
+        if(type === 'a') { subjects[idx].t++; }
+        if(type === 'b') { subjects[idx].t++; subjects[idx].b++; } // Bunk increment
+        
+        if(type === 'u') { // Undo logic
+            if(subjects[idx].t > 0) {
+                const choice = confirm("Undo options:\nOK - Undo a 'Present'\nCancel - Undo an 'Absent/Bunk'");
+                if(choice) {
+                    if(subjects[idx].p > 0) subjects[idx].p--;
+                } else {
+                    // Agar bunk tha toh bunk counter kam karo
+                    if(subjects[idx].b > 0 && confirm("Was the last one a Bunk?")) subjects[idx].b--;
+                }
+                subjects[idx].t--;
+            }
+        }
+        saveData();
+    }
+
+    function addSubject() {
+        const n = prompt("Subject Name:");
+        if(n) { subjects.push({name: n, p: 0, t: 0, b: 0}); saveData(); }
+    }
+
+    function saveData() {
+        localStorage.setItem('at_subs_v4', JSON.stringify(subjects));
+        updateUI();
     }
 
     function updateUI() {
@@ -196,15 +205,16 @@
                         <div class="subject-name">${s.name}</div>
                         <div style="font-size:1.1rem; font-weight:900; color:${statusColor}">${perc}%</div>
                     </div>
-                    <div style="font-size:0.7rem; color:#888; margin-bottom:12px;">
-                        Attended: <b>${s.p}</b> | Total: <b>${s.t}</b>
+                    <div style="font-size:0.7rem; color:#888; margin-bottom:12px; display:flex; justify-content:space-between;">
+                        <span>P: <b>${s.p}</b> / T: <b>${s.t}</b></span>
+                        <span>Total Bunks: <span class="bunk-tag">${s.b || 0}</span></span>
                     </div>
                     <div class="btn-grid">
-                        <button class="action-btn btn-p" onclick="mark(${i}, 'p')">PRESENT</button>
-                        <button class="action-btn btn-a" onclick="mark(${i}, 'a')">ABSENT</button>
+                        <button class="action-btn btn-p" onclick="mark(${i}, 'p')">PRES</button>
+                        <button class="action-btn btn-a" onclick="mark(${i}, 'a')">ABS</button>
                         <button class="action-btn btn-b" onclick="mark(${i}, 'b')">BUNK</button>
+                        <button class="action-btn btn-u" onclick="mark(${i}, 'u')">UNDO</button>
                     </div>
-                    <div class="prediction">${calculatePrediction(s.p, s.t)}</div>
                 </div>`;
         });
 
@@ -215,10 +225,7 @@
     }
 
     function logout() {
-        if(confirm("Erase all data and profile?")) {
-            localStorage.clear();
-            location.reload();
-        }
+        if(confirm("Full Reset?")) { localStorage.clear(); location.reload(); }
     }
 </script>
 </body>
